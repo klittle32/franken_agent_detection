@@ -126,6 +126,8 @@ impl ScanRoot {
     }
 }
 
+/// Periodic liveness tick for long connector scans.
+///
 /// A cheap "still alive" tick a connector may call periodically during a long
 /// internal scan (e.g. decoding a large SQLite store) so the host's stall
 /// watchdog observes liveness BEFORE the first conversation is yielded
