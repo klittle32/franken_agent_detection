@@ -152,6 +152,26 @@ detect_installed_agents(opts)
 | Missing connector in report | Scoped connectors exclude it | Remove or expand `only_connectors` |
 | Docs mismatch | Local version differs from docs.rs | Align crate version with docs URL |
 
+## Letta Code transcripts
+
+With the `connectors` feature, this crate can scan Letta Code **client**
+transcripts:
+
+```text
+~/.letta/transcripts/<agentId>/<conversationId>/transcript.jsonl
+```
+
+Override the root with `LETTA_TRANSCRIPT_ROOT` (empty/whitespace values are
+ignored). Conversation identity is `<agentId>/<conversationId>`. Backend/API
+histories, `lc-local-backend` stores, and reflection payload manifests are not
+supported.
+
+This fork (`klittle32/franken_agent_detection`, `0.1.11-letta.1`) implements
+that parser natively in Rust. It does not call Node, Bun, npm, or
+`@letta-ai/trajectory` at runtime. See `docs/letta-code-trajectory-contract.md`.
+
+Private fork: do not open an upstream PR against Dicklesworthstone.
+
 ## Limitations
 
 - Installation detection only; no session parsing or indexing.

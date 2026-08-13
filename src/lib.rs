@@ -56,9 +56,10 @@ pub use connectors::{
     estimate_tokens_from_content, extract_claude_code_tokens, extract_codex_tokens,
     extract_invocations_from_content_blocks, extract_tokens_for_agent, factory::FactoryConnector,
     file_modified_since, flatten_content, franken_detection_for_connector, gemini::GeminiConnector,
-    get_connector_factories, grok::GrokConnector, kimi::KimiConnector, normalize_model,
-    openclaw::OpenClawConnector, openhands::OpenHandsConnector, parse_timestamp,
-    pi_agent::PiAgentConnector, qwen::QwenConnector, token_extraction, vibe::VibeConnector,
+    get_connector_factories, grok::GrokConnector, kimi::KimiConnector,
+    letta_code::LettaCodeConnector, normalize_model, openclaw::OpenClawConnector,
+    openhands::OpenHandsConnector, parse_timestamp, pi_agent::PiAgentConnector,
+    qwen::QwenConnector, token_extraction, vibe::VibeConnector,
 };
 
 use serde::{Deserialize, Serialize};
@@ -137,6 +138,7 @@ const KNOWN_CONNECTORS: &[&str] = &[
     "grok",
     "hermes",
     "kimi",
+    "letta_code",
     "opencode",
     "openclaw",
     "openhands",
@@ -167,6 +169,7 @@ fn canonical_connector_slug(slug: &str) -> Option<&'static str> {
         "grok" | "grok-cli" | "grok-build" | "xai-grok" => Some("grok"),
         "hermes" | "hermes-agent" => Some("hermes"),
         "kimi" | "kimi-code" | "kimi-ai" => Some("kimi"),
+        "letta_code" | "letta-code" => Some("letta_code"),
         "opencode" | "open-code" => Some("opencode"),
         "openclaw" | "open-claw" => Some("openclaw"),
         "openhands" | "open-hands" => Some("openhands"),
@@ -216,6 +219,15 @@ fn amp_xdg_probe_root_from_env() -> Option<PathBuf> {
     std::env::var("XDG_DATA_HOME")
         .ok()
         .and_then(|value| amp_xdg_probe_root_from_env_value(&value))
+}
+
+fn letta_transcript_root_from_env_value(value: &str) -> Option<PathBuf> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(trimmed))
+    }
 }
 
 fn cline_storage_probe_roots_from_home(home: &std::path::Path) -> Vec<PathBuf> {
@@ -316,6 +328,10 @@ fn env_override_roots(slug: &str) -> Option<Vec<PathBuf>> {
                 return None;
             }
             Some(vec![PathBuf::from(root).join("data").join("sessions")])
+        }
+        "letta_code" => {
+            let root = read("LETTA_TRANSCRIPT_ROOT")?;
+            letta_transcript_root_from_env_value(&root).map(|path| vec![path])
         }
         _ => None,
     }
@@ -655,6 +671,12 @@ fn default_probe_roots(slug: &str) -> Vec<PathBuf> {
             maybe_push(&mut out, &[".kimi-code"]);
             maybe_push(&mut out, &[".kimi", "sessions"]);
             maybe_push(&mut out, &[".kimi"]);
+        }
+        "letta_code" => {
+            // Letta Code client transcripts live under ~/.letta/transcripts.
+            // Do not probe bare ~/.letta — that directory also holds backend
+            // stores and does not prove compatible client transcripts exist.
+            maybe_push(&mut out, &[".letta", "transcripts"]);
         }
         "opencode" => {
             // The canonical v1.2+ SQLite database. Probed first so diagnostic
@@ -1130,6 +1152,7 @@ pub fn default_probe_paths_tilde() -> Vec<(&'static str, Vec<String>)> {
                     tilde(&[".kimi", "sessions"]),
                     tilde(&[".kimi"]),
                 ],
+                "letta_code" => vec![tilde(&[".letta", "transcripts"])],
                 "opencode" => vec![
                     // Direct path to the v1.2+ SQLite database — probed first
                     // so display/diagnostics surface the data file (not the
@@ -1430,6 +1453,39 @@ mod tests {
     }
 
     #[test]
+    fn letta_transcript_root_from_env_value_ignores_blank_and_keeps_path() {
+        assert!(letta_transcript_root_from_env_value("   ").is_none());
+        assert_eq!(
+            letta_transcript_root_from_env_value("  /tmp/letta-transcripts  "),
+            Some(PathBuf::from("/tmp/letta-transcripts"))
+        );
+    }
+
+    #[test]
+    fn letta_code_alias_detects_via_override() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join("letta-transcripts");
+        std::fs::create_dir_all(&root).expect("mkdir letta");
+
+        let report = detect_installed_agents(&AgentDetectOptions {
+            only_connectors: Some(vec!["letta-code".to_string()]),
+            include_undetected: true,
+            root_overrides: vec![AgentDetectRootOverride {
+                slug: "letta-code".to_string(),
+                root: root.clone(),
+            }],
+        })
+        .expect("detect");
+
+        assert_eq!(report.summary.total_count, 1);
+        assert_eq!(report.summary.detected_count, 1);
+        let entry = &report.installed_agents[0];
+        assert_eq!(entry.slug, "letta_code");
+        assert!(entry.detected);
+        assert_eq!(entry.root_paths, vec![root.display().to_string()]);
+    }
+
+    #[test]
     fn cline_storage_probe_roots_cover_vscode_and_cursor_layouts() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let roots = cline_storage_probe_roots_from_home(tmp.path());
@@ -1534,6 +1590,10 @@ mod tests {
         assert!(kimi.contains(&"~/.kimi-code".to_string()));
         assert!(kimi.contains(&"~/.kimi/sessions".to_string()));
         assert!(kimi.contains(&"~/.kimi".to_string()));
+
+        let letta_code = by_slug.get("letta_code").expect("letta_code paths");
+        assert!(letta_code.contains(&"~/.letta/transcripts".to_string()));
+        assert!(!letta_code.contains(&"~/.letta".to_string()));
 
         // Oh My Pi (`omp`) shares the pi_agent connector; without these
         // probe entries an omp-only machine reports pi_agent not detected

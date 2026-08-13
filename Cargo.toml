@@ -1,11 +1,11 @@
 [package]
 name = "franken-agent-detection"
-version = "0.1.10"
+version = "0.1.11-letta.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
 description = "Local coding-agent installation detection via filesystem probes"
-repository = "https://github.com/Dicklesworthstone/franken_agent_detection"
+repository = "https://github.com/klittle32/franken_agent_detection"
 documentation = "https://docs.rs/franken-agent-detection"
 readme = "README.md"
 keywords = ["agent", "detection", "filesystem", "codex", "claude"]

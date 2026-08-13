@@ -5,7 +5,8 @@ All notable changes to **franken-agent-detection** are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Repository: <https://github.com/Dicklesworthstone/franken_agent_detection>
+Repository: <https://github.com/klittle32/franken_agent_detection>
+Upstream: <https://github.com/Dicklesworthstone/franken_agent_detection>
 Crate: <https://crates.io/crates/franken-agent-detection>
 
 > **Release vs. tag:** v0.1.1 and v0.1.3 are the published crates.io releases.
@@ -18,6 +19,15 @@ Crate: <https://crates.io/crates/franken-agent-detection>
 ## [Unreleased] -- since v0.1.3
 
 ### Added
+
+- **Letta Code connector (`LettaCodeConnector`, fork `0.1.11-letta.1`)** — native
+  parser + factory for Letta Code client transcripts at
+  `$LETTA_TRANSCRIPT_ROOT/<agent>/<conversation>/transcript.jsonl` (default
+  `~/.letta/transcripts`). Canonical slug `letta_code` (alias `letta-code`).
+  Behavioral reference is `letta-ai/trajectory` `59c0db52` (`letta-code`
+  adapter); the trajectory package is **not** a runtime dependency. Does not
+  ingest Letta backend/API histories or reflection payloads. Private fork:
+  `klittle32/franken_agent_detection`; do not open an upstream PR.
 
 - **Grok Build connector (`GrokConnector`)** — full parser + factory for
   xAI's official `grok` coding CLI
