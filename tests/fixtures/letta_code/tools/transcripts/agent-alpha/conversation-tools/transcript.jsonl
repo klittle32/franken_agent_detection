@@ -1,0 +1,5 @@
+{"kind":"user","text":"please inspect the fixture file","captured_at":"2026-07-01T13:00:00Z","source_message_id":"msg-user-tools"}
+{"kind":"tool_call","name":"Read","argsText":"{\"file_path\":\"src/lib.rs\",\"needle\":\"letta-tool-arg-violet-key\"}","resultText":"letta-tool-result-green-beacon","resultOk":true,"captured_at":"2026-07-01T13:00:01Z","source_line_id":"line-read-1","source_message_id":"msg-read-1"}
+{"kind":"tool_call","name":"Shell","argsText":"{\"cmd\":\"fail\"}","resultText":"letta-tool-failure-red-signal","resultOk":false,"captured_at":"2026-07-01T13:00:02Z","source_line_id":"line-fail-1"}
+{"kind":"tool_call","name":"Shell","argsText":"{\"cmd\":\"fail2\"}","resultText":"error: already prefixed","resultOk":false,"captured_at":"2026-07-01T13:00:03Z","source_line_id":"line-fail-2"}
+{"kind":"tool_call","argsText":"not-json-args","resultText":"ok-without-name","resultOk":true,"captured_at":"2026-07-01T13:00:04Z","source_message_id":"msg-unknown-tool"}

@@ -1,0 +1,7 @@
+{"kind":"user","text":"cleanup start","captured_at":"2026-07-01T15:00:00Z","source_message_id":"msg-cleanup"}
+not json at all
+{"kind":"system","text":"unsupported"}
+{"kind":"error","text":"runtime boom","captured_at":"2026-07-01T15:00:01Z"}
+{"kind":"user","text":"","captured_at":"2026-07-01T15:00:02Z"}
+{"kind":"assistant","text":"survived cleanup","captured_at":"not-a-timestamp","source_message_id":"msg-cleanup-assistant"}
+{"kind":"reasoning","text":"","captured_at":"2026-07-01T15:00:03Z"}
