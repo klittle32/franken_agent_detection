@@ -10,7 +10,14 @@
 //!   — available with the `connectors` feature
 
 #![forbid(unsafe_code)]
-#![cfg_attr(test, allow(clippy::uninlined_format_args, clippy::redundant_clone))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::uninlined_format_args,
+        clippy::redundant_clone,
+        clippy::assert_is_empty
+    )
+)]
 
 #[cfg(feature = "connectors")]
 pub mod connectors;
@@ -46,7 +53,9 @@ pub use connectors::hermes::HermesConnector;
 #[cfg(feature = "opencode")]
 pub use connectors::opencode::OpenCodeConnector;
 #[cfg(feature = "connectors")]
-pub use connectors::token_extraction::{ExtractedTokenUsage, ModelInfo, TokenDataSource};
+pub use connectors::token_extraction::{
+    ExtractedTokenUsage, ModelInfo, TokenDataSource, extract_pi_family_tokens,
+};
 #[cfg(feature = "connectors")]
 pub use connectors::{
     Connector, DiscoveredSourceFile, DiscoveredSourceRole, PathTrie, ScanContext, ScanRoot,
@@ -59,12 +68,12 @@ pub use connectors::{
     get_connector_factories, grok::GrokConnector, kimi::KimiConnector,
     letta_code::LettaCodeConnector, normalize_model, openclaw::OpenClawConnector,
     openhands::OpenHandsConnector, parse_timestamp, pi_agent::PiAgentConnector,
-    qwen::QwenConnector, token_extraction, vibe::VibeConnector,
+    prime_agent::PrimeAgentConnector, qwen::QwenConnector, token_extraction, vibe::VibeConnector,
 };
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct AgentDetectOptions {
@@ -143,6 +152,7 @@ const KNOWN_CONNECTORS: &[&str] = &[
     "openclaw",
     "openhands",
     "pi_agent",
+    "prime_agent",
     "qwen",
     "vibe",
     "windsurf",
@@ -174,6 +184,7 @@ fn canonical_connector_slug(slug: &str) -> Option<&'static str> {
         "openclaw" | "open-claw" => Some("openclaw"),
         "openhands" | "open-hands" => Some("openhands"),
         "pi_agent" | "pi-agent" | "piagent" => Some("pi_agent"),
+        "prime_agent" | "prime-agent" | "primeagent" | "prime" => Some("prime_agent"),
         "qwen" | "qwen-code" | "qwen-cli" => Some("qwen"),
         "vibe" | "vibe-cli" => Some("vibe"),
         "windsurf" => Some("windsurf"),
@@ -228,6 +239,44 @@ fn letta_transcript_root_from_env_value(value: &str) -> Option<PathBuf> {
     } else {
         Some(PathBuf::from(trimmed))
     }
+}
+
+pub(crate) fn nonempty_trimmed(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|text| !text.is_empty())
+}
+
+/// Expand `~` and `~/` the same way Prime Agent's `expandTildePath` does.
+pub(crate) fn expand_tilde_like_prime(path: &str, home: Option<&std::path::Path>) -> PathBuf {
+    let trimmed = path.trim();
+    if trimmed == "~" {
+        return home.map_or_else(PathBuf::new, Path::to_path_buf);
+    }
+    if let Some(rest) = trimmed.strip_prefix("~/") {
+        return home.map_or_else(|| PathBuf::from(rest), |home| home.join(rest));
+    }
+    PathBuf::from(trimmed)
+}
+
+/// Resolve the Prime sessions directory from documented environment overrides.
+pub(crate) fn prime_agent_session_dir_from_overrides(
+    session_dir: Option<&str>,
+    legacy_session_dir: Option<&str>,
+    agent_dir: Option<&str>,
+    home: Option<&std::path::Path>,
+) -> PathBuf {
+    if let Some(dir) = nonempty_trimmed(session_dir) {
+        return expand_tilde_like_prime(dir, home);
+    }
+    if let Some(dir) = nonempty_trimmed(legacy_session_dir) {
+        return expand_tilde_like_prime(dir, home);
+    }
+    if let Some(dir) = nonempty_trimmed(agent_dir) {
+        return expand_tilde_like_prime(dir, home).join("sessions");
+    }
+    home.map_or_else(
+        || PathBuf::from(".prime/agent/sessions"),
+        |home| home.join(".prime").join("agent").join("sessions"),
+    )
 }
 
 fn cline_storage_probe_roots_from_home(home: &std::path::Path) -> Vec<PathBuf> {
@@ -321,6 +370,23 @@ fn env_override_roots(slug: &str) -> Option<Vec<PathBuf>> {
                 return None;
             }
             Some(vec![PathBuf::from(root).join("sessions")])
+        }
+        "prime_agent" => {
+            let session = read("PRIME_AGENT_SESSION_DIR");
+            let legacy = read("PRIME_AGENT_CODING_AGENT_SESSION_DIR");
+            let agent = read("PRIME_AGENT_CODING_AGENT_DIR");
+            if nonempty_trimmed(session.as_deref()).is_none()
+                && nonempty_trimmed(legacy.as_deref()).is_none()
+                && nonempty_trimmed(agent.as_deref()).is_none()
+            {
+                return None;
+            }
+            Some(vec![prime_agent_session_dir_from_overrides(
+                session.as_deref(),
+                legacy.as_deref(),
+                agent.as_deref(),
+                dirs::home_dir().as_deref(),
+            )])
         }
         "goose" => {
             let root = read("GOOSE_PATH_ROOT")?;
@@ -705,6 +771,10 @@ fn default_probe_roots(slug: &str) -> Vec<PathBuf> {
             // investigation fallout).
             maybe_push(&mut out, &[".omp", "agent", "sessions"]);
             maybe_push(&mut out, &[".omp", "agent"]);
+        }
+        "prime_agent" => {
+            maybe_push(&mut out, &[".prime", "agent", "sessions"]);
+            maybe_push(&mut out, &[".prime", "agent"]);
         }
         "qwen" => {
             maybe_push(&mut out, &[".qwen", "tmp"]);
@@ -1172,6 +1242,10 @@ pub fn default_probe_paths_tilde() -> Vec<(&'static str, Vec<String>)> {
                     tilde(&[".omp", "agent", "sessions"]),
                     tilde(&[".omp", "agent"]),
                 ],
+                "prime_agent" => vec![
+                    tilde(&[".prime", "agent", "sessions"]),
+                    tilde(&[".prime", "agent"]),
+                ],
                 "qwen" => vec![tilde(&[".qwen", "tmp"]), tilde(&[".qwen"])],
                 "vibe" => vec![tilde(&[".vibe", "logs", "session"]), tilde(&[".vibe"])],
                 "windsurf" => vec![tilde(&[".windsurf"]), tilde(&[".config", "windsurf"])],
@@ -1462,6 +1536,32 @@ mod tests {
     }
 
     #[test]
+    fn prime_agent_alias_detects_via_override() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join("prime-sessions");
+        std::fs::create_dir_all(&root).expect("mkdir prime");
+
+        let report = detect_installed_agents(&AgentDetectOptions {
+            only_connectors: Some(vec!["prime-agent".to_string()]),
+            include_undetected: true,
+            root_overrides: vec![AgentDetectRootOverride {
+                slug: "prime".to_string(),
+                root: root.clone(),
+            }],
+        })
+        .expect("detect");
+
+        let entry = report
+            .installed_agents
+            .iter()
+            .find(|entry| entry.slug == "prime_agent")
+            .expect("prime_agent entry");
+        assert_eq!(entry.slug, "prime_agent");
+        assert!(entry.detected);
+        assert_eq!(entry.root_paths, vec![root.display().to_string()]);
+    }
+
+    #[test]
     fn letta_code_alias_detects_via_override() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path().join("letta-transcripts");
@@ -1602,6 +1702,13 @@ mod tests {
         assert!(pi_agent.contains(&"~/.pi/agent/sessions".to_string()));
         assert!(pi_agent.contains(&"~/.omp/agent/sessions".to_string()));
         assert!(pi_agent.contains(&"~/.omp/agent".to_string()));
+        assert!(!pi_agent.contains(&"~/.prime/agent/sessions".to_string()));
+
+        let prime_agent = by_slug.get("prime_agent").expect("prime_agent paths");
+        assert!(prime_agent.contains(&"~/.prime/agent/sessions".to_string()));
+        assert!(prime_agent.contains(&"~/.prime/agent".to_string()));
+        assert!(!prime_agent.contains(&"~/.pi/agent/sessions".to_string()));
+        assert!(!prime_agent.contains(&"~/.omp/agent/sessions".to_string()));
 
         let cline = by_slug.get("cline").expect("cline paths");
         assert!(

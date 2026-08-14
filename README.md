@@ -166,9 +166,26 @@ ignored). Conversation identity is `<agentId>/<conversationId>`. Backend/API
 histories, `lc-local-backend` stores, and reflection payload manifests are not
 supported.
 
-This fork (`klittle32/franken_agent_detection`, `0.1.11-letta.1`) implements
+This fork (`klittle32/franken_agent_detection`, `0.1.12-letta-prime.1`) implements
 that parser natively in Rust. It does not call Node, Bun, npm, or
 `@letta-ai/trajectory` at runtime. See `docs/letta-code-trajectory-contract.md`.
+
+## Prime Agent sessions
+
+With the `connectors` feature, this crate can scan Prime Agent sessions:
+
+```text
+~/.prime/agent/sessions/<session-id>.jsonl
+```
+
+Root precedence: `PRIME_AGENT_SESSION_DIR`, then
+`PRIME_AGENT_CODING_AGENT_SESSION_DIR`, then
+`PRIME_AGENT_CODING_AGENT_DIR/sessions`, then `~/.prime/agent/sessions`.
+Blank values are ignored; `~` and `~/` expand like Prime. Canonical slug
+`prime_agent`. Prime is Pi-derived but is **not** `pi_agent` — do not add
+`~/.prime` as a Pi root.
+
+See `docs/prime-agent-session-contract.md`.
 
 Private fork: do not open an upstream PR against Dicklesworthstone.
 

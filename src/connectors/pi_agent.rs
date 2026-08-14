@@ -18,6 +18,7 @@ use anyhow::Result;
 use serde_json::Value;
 use walkdir::WalkDir;
 
+use super::pi_wire::{PiContentBlock, extract_tool_invocations, visit_pi_content_blocks};
 use super::scan::{DiscoveredSourceFile, DiscoveredSourceRole, ScanContext, ScanRoot};
 use super::{
     Connector, file_modified_since, franken_detection_for_connector, parse_timestamp,
@@ -256,61 +257,35 @@ impl PiAgentConnector {
     /// - `ToolCall`: {type: "toolCall", name: "...", arguments: {...}}
     /// - `ImageContent`: {type: "image", ...} (skip for text extraction)
     fn flatten_message_content(content: &Value) -> String {
-        // Direct string content (simple user messages)
         if let Some(s) = content.as_str() {
             return s.to_string();
         }
 
-        // Array of content blocks
-        if let Some(arr) = content.as_array() {
-            let parts: Vec<String> = arr
-                .iter()
-                .filter_map(|item| {
-                    let item_type = item.get("type").and_then(|v| v.as_str());
-
-                    match item_type {
-                        Some("text") => item.get("text").and_then(|v| v.as_str()).map(String::from),
-                        Some("thinking") => {
-                            // Include thinking content - valuable for search
-                            item.get("thinking")
-                                .and_then(|v| v.as_str())
-                                .map(|t| format!("[Thinking] {t}"))
-                        }
-                        Some("toolCall") => {
-                            // Include tool calls for searchability
-                            let name = item
-                                .get("name")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown");
-                            let args = item
-                                .get("arguments")
-                                .map(|a| {
-                                    // Extract key argument values for context
-                                    a.as_object().map_or_else(String::new, |obj| {
-                                        obj.iter()
-                                            .filter_map(|(k, v)| {
-                                                v.as_str().map(|s| format!("{k}={s}"))
-                                            })
-                                            .take(3) // Limit to avoid huge strings
-                                            .collect::<Vec<_>>()
-                                            .join(", ")
-                                    })
-                                })
-                                .unwrap_or_default();
-                            if args.is_empty() {
-                                Some(format!("[Tool: {name}]"))
-                            } else {
-                                Some(format!("[Tool: {name}] {args}"))
-                            }
-                        }
-                        _ => None, // Skip image and unknown content
-                    }
-                })
-                .collect();
-            return parts.join("\n");
-        }
-
-        String::new()
+        let mut parts = Vec::new();
+        visit_pi_content_blocks(content, |block| match block {
+            PiContentBlock::Text(text) => parts.push(text.to_string()),
+            PiContentBlock::Thinking(text) => parts.push(format!("[Thinking] {text}")),
+            PiContentBlock::ToolCall {
+                name, arguments, ..
+            } => {
+                let args = arguments.map_or_else(String::new, |a| {
+                    a.as_object().map_or_else(String::new, |obj| {
+                        obj.iter()
+                            .filter_map(|(k, v)| v.as_str().map(|s| format!("{k}={s}")))
+                            .take(3)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                });
+                if args.is_empty() {
+                    parts.push(format!("[Tool: {name}]"));
+                } else {
+                    parts.push(format!("[Tool: {name}] {args}"));
+                }
+            }
+            PiContentBlock::Image { .. } | PiContentBlock::Other => {}
+        });
+        parts.join("\n")
     }
 
     fn looks_like_root(path: &Path) -> bool {
@@ -651,32 +626,7 @@ impl Connector for PiAgentConnector {
 
                                 let invocations = msg
                                     .get("content")
-                                    .and_then(|c| c.as_array())
-                                    .map(|arr| {
-                                        arr.iter()
-                                            .filter(|item| {
-                                                item.get("type").and_then(|t| t.as_str())
-                                                    == Some("toolCall")
-                                            })
-                                            .map(|item| {
-                                                let name = item
-                                                    .get("name")
-                                                    .and_then(|n| n.as_str())
-                                                    .unwrap_or("unknown")
-                                                    .to_string();
-                                                crate::types::NormalizedInvocation {
-                                                    kind: "tool".to_string(),
-                                                    name,
-                                                    raw_name: None,
-                                                    call_id: item
-                                                        .get("id")
-                                                        .and_then(|v| v.as_str())
-                                                        .map(String::from),
-                                                    arguments: item.get("arguments").cloned(),
-                                                }
-                                            })
-                                            .collect::<Vec<_>>()
-                                    })
+                                    .map(extract_tool_invocations)
                                     .unwrap_or_default();
 
                                 messages.push(NormalizedMessage {
@@ -871,6 +821,22 @@ mod tests {
         let content = json!(null);
         let result = PiAgentConnector::flatten_message_content(&content);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn flatten_message_content_regression_snapshot_unchanged() {
+        let content = json!([
+            {"type": "text", "text": "Let me help:"},
+            {"type": "thinking", "thinking": "Analyzing..."},
+            {"type": "toolCall", "name": "bash", "arguments": {"command": "ls", "a": "1", "b": "2", "c": "3", "d": "4"}},
+            {"type": "image", "url": "data:image/png;base64,AAA"},
+            {"type": "text", "text": "Done!"}
+        ]);
+        let result = PiAgentConnector::flatten_message_content(&content);
+        assert_eq!(
+            result,
+            "Let me help:\n[Thinking] Analyzing...\n[Tool: bash] command=ls, a=1, b=2\nDone!"
+        );
     }
 
     #[test]

@@ -20,6 +20,19 @@ Crate: <https://crates.io/crates/franken-agent-detection>
 
 ### Added
 
+- **Prime Agent connector (`PrimeAgentConnector`, fork `0.1.12-letta-prime.1`)** —
+  native parser + factory for Prime Agent JSONL sessions at
+  `$PRIME_AGENT_SESSION_DIR/<session-id>.jsonl` (default
+  `~/.prime/agent/sessions`). Canonical slug `prime_agent` (aliases
+  `prime-agent`, `primeagent`, `prime`). Prime is Pi-derived but remains a
+  distinct connector: `~/.prime` is never a `pi_agent` root, and Prime
+  sessions are never emitted as `pi_agent`. Indexes the complete append-only
+  history, including abandoned branches. Direct API usage is extracted
+  without substituting RLM `aggregateUsage` onto parent assistants.
+  Behavioral reference is `PrimeIntellect-ai/prime-agent`
+  `9bf49d897c22563f3e4483d28149c1aac452a6f9`. Private fork:
+  `klittle32/franken_agent_detection`; do not open an upstream PR.
+
 - **Letta Code connector (`LettaCodeConnector`, fork `0.1.11-letta.1`)** — native
   parser + factory for Letta Code client transcripts at
   `$LETTA_TRANSCRIPT_ROOT/<agent>/<conversation>/transcript.jsonl` (default

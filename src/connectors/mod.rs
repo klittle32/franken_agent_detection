@@ -1,6 +1,6 @@
 //! Shared connector infrastructure.
 //!
-//! Utilities, data structures, and scan primitives used by all 15 connectors.
+//! Utilities, data structures, and scan primitives used by all connectors.
 
 pub mod aider;
 pub mod amp;
@@ -32,6 +32,8 @@ pub mod opencode;
 pub mod openhands;
 pub mod path_trie;
 pub mod pi_agent;
+pub(crate) mod pi_wire;
+pub mod prime_agent;
 pub mod qwen;
 pub mod scan;
 #[cfg(any(
@@ -54,7 +56,8 @@ pub use path_trie::PathTrie;
 pub use scan::{DiscoveredSourceFile, DiscoveredSourceRole, ScanContext, ScanRoot};
 pub use token_extraction::{
     ExtractedTokenUsage, ModelInfo, TokenDataSource, estimate_tokens_from_content,
-    extract_claude_code_tokens, extract_codex_tokens, extract_tokens_for_agent, normalize_model,
+    extract_claude_code_tokens, extract_codex_tokens, extract_pi_family_tokens,
+    extract_tokens_for_agent, normalize_model,
 };
 pub use utils::{
     extract_invocations_from_content_blocks, file_modified_since, flatten_content, parse_timestamp,
@@ -229,6 +232,9 @@ pub fn get_connector_factories() -> Vec<(&'static str, fn() -> Box<dyn Connector
         }),
         ("aider", || Box::new(aider::AiderConnector::new())),
         ("pi_agent", || Box::new(pi_agent::PiAgentConnector::new())),
+        ("prime_agent", || {
+            Box::new(prime_agent::PrimeAgentConnector::new())
+        }),
         ("factory", || Box::new(factory::FactoryConnector::new())),
         ("kimi", || Box::new(kimi::KimiConnector::new())),
         ("openclaw", || Box::new(openclaw::OpenClawConnector::new())),

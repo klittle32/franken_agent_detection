@@ -1,6 +1,6 @@
 [package]
 name = "franken-agent-detection"
-version = "0.1.11-letta.1"
+version = "0.1.12-letta-prime.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
