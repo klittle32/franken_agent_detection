@@ -13,6 +13,7 @@ pub mod cline;
 pub mod codex;
 pub mod copilot;
 pub mod copilot_cli;
+pub(crate) mod copilot_vscode;
 #[cfg(feature = "crush")]
 pub mod crush;
 #[cfg(feature = "cursor")]
@@ -26,6 +27,7 @@ pub mod grok;
 pub mod hermes;
 pub mod kimi;
 pub mod letta_code;
+pub mod muse;
 pub mod openclaw;
 #[cfg(feature = "opencode")]
 pub mod opencode;
@@ -41,7 +43,8 @@ pub mod scan;
     feature = "opencode",
     feature = "goose",
     feature = "hermes",
-    feature = "crush"
+    feature = "crush",
+    feature = "copilot-vscdb"
 ))]
 pub mod sqlite_sync;
 pub mod token_extraction;
@@ -237,6 +240,7 @@ pub fn get_connector_factories() -> Vec<(&'static str, fn() -> Box<dyn Connector
         }),
         ("factory", || Box::new(factory::FactoryConnector::new())),
         ("kimi", || Box::new(kimi::KimiConnector::new())),
+        ("muse", || Box::new(muse::MuseConnector::new())),
         ("openclaw", || Box::new(openclaw::OpenClawConnector::new())),
         ("openhands", || {
             Box::new(openhands::OpenHandsConnector::new())
