@@ -158,9 +158,7 @@ With the `connectors` feature, this crate scans Letta Code client transcripts at
 
 Set `LETTA_TRANSCRIPT_ROOT` to override that root. Empty and whitespace-only values are ignored. The conversation id is `<agentId>/<conversationId>`.
 
-This connector does not read Letta backend or API histories, `lc-local-backend` stores, or reflection payload manifests.
-
-This fork (`klittle32/franken_agent_detection`, `0.3.3-letta.1`) implements the parser in Rust. It does not call Node, Bun, npm, or `@letta-ai/trajectory`. The field contract is `docs/letta-code-trajectory-contract.md`.
+The field contract is `docs/letta-code-trajectory-contract.md`.
 
 ## Prime Agent sessions
 
@@ -169,8 +167,6 @@ Prime Agent sessions live at `~/.prime/agent/sessions/<session-id>.jsonl`.
 Root precedence is `PRIME_AGENT_SESSION_DIR`, then `PRIME_AGENT_CODING_AGENT_SESSION_DIR`, then `PRIME_AGENT_CODING_AGENT_DIR/sessions`, then `~/.prime/agent/sessions`. Blank values are ignored. A leading `~` expands the same way Prime expands it. The canonical slug is `prime_agent`. The alias `prime` resolves to that slug. Prime is not `pi_agent`. Do not add `~/.prime` as a Pi root.
 
 The connector indexes the active branch of a session file. Abandoned sibling branches stay out of the conversation. Their counts are in session metadata.
-
-This is a private fork. Do not open an upstream pull request against `Dicklesworthstone/franken_agent_detection`.
 
 ## Limitations
 

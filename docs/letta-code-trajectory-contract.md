@@ -1,11 +1,7 @@
 # Letta Code trajectory contract
 
-Private fork note: **do not open an upstream PR** against
-`Dicklesworthstone/franken_agent_detection`. This branch lives on
-`klittle32/franken_agent_detection`.
-
 This document pins the behavioral contract for the native Rust `letta_code`
-connector. `@letta-ai/trajectory` is a format oracle, not a runtime dependency.
+connector. `@letta-ai/trajectory` is the format oracle.
 
 ## Source revisions
 
@@ -36,8 +32,7 @@ copies of trajectory fixtures or private Letta sessions.
 | Rust type | `LettaCodeConnector` |
 | Feature gate | existing `connectors` feature |
 
-Bare `letta` is not an alias. This connector does not ingest Letta backend/API
-histories, `lc-local-backend` stores, or reflection payload manifests.
+Bare `letta` is not an alias.
 
 ## Input layout
 

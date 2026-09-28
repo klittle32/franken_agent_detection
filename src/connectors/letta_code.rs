@@ -7,13 +7,11 @@
 //! ```
 //!
 //! Default root: `~/.letta/transcripts`. Empty or whitespace-only
-//! `LETTA_TRANSCRIPT_ROOT` values are ignored. This connector does not ingest
-//! Letta backend/API histories, `lc-local-backend` stores, or reflection
-//! payload manifests.
+//! `LETTA_TRANSCRIPT_ROOT` values are ignored.
 //!
 //! Row interpretation follows `letta-ai/trajectory` commit
 //! `59c0db52cc1521efc7fb5d8c7cccf48ee4afcf32` (`src/adapters/letta-code/`),
-//! reimplemented in Rust. The trajectory package is not a runtime dependency.
+//! reimplemented in Rust.
 
 use std::collections::HashSet;
 use std::fs::File;
@@ -54,7 +52,6 @@ struct SourceIdentity {
     component_index: u8,
 }
 
-/// Connector for Letta Code client transcripts.
 pub struct LettaCodeConnector;
 
 impl Default for LettaCodeConnector {
@@ -69,13 +66,17 @@ impl LettaCodeConnector {
         Self
     }
 
-    /// Transcript root used when no explicit scan roots are supplied.
     fn transcript_root() -> PathBuf {
-        Self::transcript_root_from(env_path_nonempty(ENV_TRANSCRIPT_ROOT), dirs::home_dir())
+        Self::override_or_home_transcript_root(
+            env_path_nonempty(ENV_TRANSCRIPT_ROOT),
+            dirs::home_dir(),
+        )
     }
 
-    /// Pure root derivation so env fallback can be tested without `set_var`.
-    fn transcript_root_from(override_root: Option<PathBuf>, home: Option<PathBuf>) -> PathBuf {
+    fn override_or_home_transcript_root(
+        override_root: Option<PathBuf>,
+        home: Option<PathBuf>,
+    ) -> PathBuf {
         if let Some(explicit) = override_root {
             return explicit;
         }
@@ -166,32 +167,56 @@ fn collect_from_transcript_root(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Bounded shape-aware discovery. Never walks arbitrary depth.
-fn transcripts_under(target: &Path) -> Vec<PathBuf> {
+enum TranscriptLayout {
+    SingleFile,
+    ConversationDir,
+    LettaParent,
+    MirroredHome,
+    TranscriptsDir,
+    AgentOrRoot,
+    Empty,
+}
+
+fn transcript_layout(target: &Path) -> TranscriptLayout {
     if is_nonempty_transcript_file(target) {
-        return vec![target.to_path_buf()];
+        return TranscriptLayout::SingleFile;
     }
     if !target.is_dir() {
-        return Vec::new();
+        return TranscriptLayout::Empty;
     }
-
-    let direct = target.join(TRANSCRIPT_FILE_NAME);
-    if is_nonempty_transcript_file(&direct) {
-        return vec![direct];
+    if is_nonempty_transcript_file(&target.join(TRANSCRIPT_FILE_NAME)) {
+        return TranscriptLayout::ConversationDir;
     }
-
-    let mut out = Vec::new();
     if file_name_eq(target, ".letta") {
-        collect_from_transcript_root(&target.join("transcripts"), &mut out);
-    } else if target.join(".letta").join("transcripts").is_dir() {
-        collect_from_transcript_root(&target.join(".letta").join("transcripts"), &mut out);
-    } else if file_name_eq(target, "transcripts") {
-        collect_from_transcript_root(target, &mut out);
-    } else {
-        collect_from_agent_dir(target, &mut out);
-        collect_from_transcript_root(target, &mut out);
+        return TranscriptLayout::LettaParent;
     }
+    if target.join(".letta").join("transcripts").is_dir() {
+        return TranscriptLayout::MirroredHome;
+    }
+    if file_name_eq(target, "transcripts") {
+        return TranscriptLayout::TranscriptsDir;
+    }
+    TranscriptLayout::AgentOrRoot
+}
 
+fn transcripts_under(target: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    match transcript_layout(target) {
+        TranscriptLayout::SingleFile => return vec![target.to_path_buf()],
+        TranscriptLayout::ConversationDir => return vec![target.join(TRANSCRIPT_FILE_NAME)],
+        TranscriptLayout::Empty => return Vec::new(),
+        TranscriptLayout::LettaParent => {
+            collect_from_transcript_root(&target.join("transcripts"), &mut out);
+        }
+        TranscriptLayout::MirroredHome => {
+            collect_from_transcript_root(&target.join(".letta").join("transcripts"), &mut out);
+        }
+        TranscriptLayout::TranscriptsDir => collect_from_transcript_root(target, &mut out),
+        TranscriptLayout::AgentOrRoot => {
+            collect_from_agent_dir(target, &mut out);
+            collect_from_transcript_root(target, &mut out);
+        }
+    }
     out.sort();
     out.dedup();
     out
@@ -761,14 +786,14 @@ mod tests {
     fn transcript_root_uses_override_and_ignores_blank() {
         let home = PathBuf::from("/tmp/home");
         assert_eq!(
-            LettaCodeConnector::transcript_root_from(
+            LettaCodeConnector::override_or_home_transcript_root(
                 Some(PathBuf::from("/custom/root")),
                 Some(home.clone())
             ),
             PathBuf::from("/custom/root")
         );
         assert_eq!(
-            LettaCodeConnector::transcript_root_from(None, Some(home.clone())),
+            LettaCodeConnector::override_or_home_transcript_root(None, Some(home.clone())),
             home.join(".letta").join("transcripts")
         );
     }

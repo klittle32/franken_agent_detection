@@ -10,14 +10,7 @@
 //!   — available with the `connectors` feature
 
 #![forbid(unsafe_code)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::uninlined_format_args,
-        clippy::redundant_clone,
-        clippy::assert_is_empty
-    )
-)]
+#![cfg_attr(test, allow(clippy::uninlined_format_args, clippy::redundant_clone))]
 
 #[cfg(feature = "connectors")]
 pub mod connectors;
@@ -870,9 +863,6 @@ fn default_probe_roots(slug: &str) -> Vec<PathBuf> {
             maybe_push(&mut out, &[".kimi"]);
         }
         "letta_code" => {
-            // Letta Code client transcripts live under ~/.letta/transcripts.
-            // Do not probe bare ~/.letta — that directory also holds backend
-            // stores and does not prove compatible client transcripts exist.
             maybe_push(&mut out, &[".letta", "transcripts"]);
         }
         "muse" => {
